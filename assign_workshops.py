@@ -169,7 +169,11 @@ def build_zone_map(prefs):
     return prefs.groupby('Workshop')['Zone'].first().to_dict()
 
 def build_costs(prefs):
-    return {(r.Student, r.Workshop): r.Rank for r in prefs.itertuples(index=False)}
+    cost = {}
+    for r in prefs.itertuples(index=False):
+        key = (r.Student, r.Workshop)
+        cost[key] = min(r.Rank, cost.get(key, r.Rank))
+    return cost
 
 def main():
     # 1) Load everything
@@ -260,12 +264,15 @@ def main():
             first_full  = [var for (w,var) in full_pairs  if cost.get((s,w), 999) == 1]
             second_half = [var for (w,var) in half_pairs  if cost.get((s,w), 999) == 2]
             second_full = [var for (w,var) in full_pairs  if cost.get((s,w), 999) == 2]
+            other_half  = [var for (w,var) in half_pairs  if cost.get((s,w), 999) not in (1,2)]
+            other_full  = [var for (w,var) in full_pairs  if cost.get((s,w), 999) not in (1,2)]
 
             fsz = pulp.lpSum(first_half ) + 2*pulp.lpSum(first_full)
             ssz = pulp.lpSum(second_half) + 2*pulp.lpSum(second_full)
+            osz = pulp.lpSum(other_half) + 2*pulp.lpSum(other_full)
 
-            prob += (fsz + ssz == 2,           f"TwoPerZone_{s}_{z}")
-            prob += (ssz >= 2 - fsz,           f"SecondIfNeeded_{s}_{z}")
+            prob += (fsz + ssz + osz == 2,           f"TwoPerZone_{s}_{z}")
+            prob += (ssz + osz >= 2 - fsz,           f"SecondIfNeeded_{s}_{z}")
 
     # 7) Capacity
     for (w,t,d,cap,full) in ws_specs:
