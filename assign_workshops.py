@@ -175,6 +175,7 @@ def solve_group(students, zone_map, cost, cap_map, full_map, days, *, late: bool
         # ── No repeats: each student may take a given workshop at most once ──
     # prohibit assigning the same workshop to a student more than once
     workshops = sorted({w for (w, _, _) in cap_map.keys()})
+
     slots_by_workshop = {
         w: [(d, t) for (ww, d, t) in cap_map.keys() if ww == w]
         for w in workshops
