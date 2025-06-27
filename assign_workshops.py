@@ -154,15 +154,17 @@ def solve_group(students, zone_map, cost, cap_map, full_map, days, *, late: bool
     #         )
     #     # ── No repeats: each student may take a given workshop at most once ──
         # ── No repeats: each student may take a given workshop at most once ──
-    workshops = sorted({ w for (w, d, t) in cap_map.keys() })
+    # prohibit assigning the same workshop to a student more than once
+    workshops = sorted({w for (w, _, _) in cap_map.keys()})
     for s in students:
         for w in workshops:
+            vars_for_workshop = [
+                x[(s, w, day, sess)]
+                for (work, day, sess) in cap_map.keys()
+                if work == w
+            ]
             prob += (
-                pulp.lpSum(
-                    x[(s, w, d, t)]
-                    for (w2, d, t) in cap_map
-                    if w2 == w
-                ) <= 1,
+                pulp.lpSum(vars_for_workshop) <= 1,
                 f"NoRepeat_{s}_{w.replace(' ','_')}"
             )
 
@@ -391,6 +393,7 @@ def main():
     if not dups.empty:
         print('Found duplicate assignments!')
         print(dups)
+        raise ValueError('Duplicate workshop assignments detected')
 
     out.to_csv('FINAL_workshop_schedule_v1.csv', index=False)
 
