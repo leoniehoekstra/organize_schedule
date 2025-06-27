@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 assign_workshops.py
 
@@ -19,25 +18,10 @@ def load_data():
         'student_preferences_long_v8.csv',
         dtype={'Rank': int},
     )
-
-    # normalize names/workshops to avoid duplicates from inconsistent casing
-    prefs['Student'] = prefs['Student'].str.strip().str.lower()
-    prefs['Workshop'] = prefs['Workshop'].str.strip()
-
     # parse submission dates so we can order students chronologically
     prefs['Parsed_Date'] = pd.to_datetime(
         prefs['Date'], format='%d-%m-%Y %H:%M:%S'
     )
-
-    # if a student submitted multiple times keep only the earliest submission
-    prefs.sort_values('Parsed_Date', inplace=True)
-    first_dates = prefs.groupby('Student')['Parsed_Date'].first()
-    prefs = (
-        prefs.merge(first_dates, on='Student', suffixes=('', '_first'))
-        .query('Parsed_Date == Parsed_Date_first')
-        .drop(columns='Parsed_Date_first')
-    )
-
     return sched, prefs
 
 def build_zone_map(prefs):
@@ -147,29 +131,42 @@ def solve_group(students, zone_map, cost, cap_map, full_map, days, *, late: bool
                     f"RandLimit_{s}_{z}")
     # ------------------------------------------------------------------
 
-
-
     # Capacity constraints
     for (w, d, t), cap in cap_map.items():
         prob += (
             pulp.lpSum(x[(s, w, d, t)] for s in students) <= cap,
             f"Cap_{w.replace(' ','_')}_{d}_T{t}"
         )
-        
-    # No repeats per student
-    # Make absolutely sure we unpack the capacity‐map keys in the same order
-    # (workshop, day, session) that we built them:
+
+    # # ── No repeats: each student may take a given workshop at most once ──
+    # workshops = sorted({ w for (w, d, t) in cap_map.keys() })
+    # for s in students:
+    #     for w0 in workshops:
+    #         # collect all decision vars for this student & workshop
+    #         terms = []
+    #         for (s2, w2, d2, t2), var in x.items():
+    #             if s2 == s and w2 == w0:
+    #                 terms.append(var)
+    #         # enforce at most one assignment to workshop w0 for student s
+    #         prob += (
+    #             pulp.lpSum(terms) <= 1,
+    #             f"NoRepeat_{s}_{w0.replace(' ','_')}"
+    #         )
+    #     # ── No repeats: each student may take a given workshop at most once ──
+        # ── No repeats: each student may take a given workshop at most once ──
     workshops = sorted({ w for (w, d, t) in cap_map.keys() })
     for s in students:
-        for w0 in workshops:
+        for w in workshops:
             prob += (
                 pulp.lpSum(
-                    x[(s, w0, d, t)]
-                    for (w, d, t) in cap_map.keys()
-                    if w == w0
+                    x[(s, w, d, t)]
+                    for (w2, d, t) in cap_map
+                    if w2 == w
                 ) <= 1,
-                f"NoRepeat_{s}_{w0.replace(' ','_')}"
+                f"NoRepeat_{s}_{w.replace(' ','_')}"
             )
+
+
 
 
     # One slot per day/session
@@ -395,9 +392,9 @@ def main():
         print('Found duplicate assignments!')
         print(dups)
 
-    out.to_csv('FINAL_workshop_schedule.csv', index=False)
+    out.to_csv('FINAL_workshop_schedule_v1.csv', index=False)
 
-    print('Solved sequentially. Assignments saved to FINAL_workshop_schedule.csv')
+    print('Solved sequentially. Assignments saved to FINAL_workshop_schedule_v1.csv')
 
 
 if __name__ == '__main__':
