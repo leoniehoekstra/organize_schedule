@@ -19,10 +19,25 @@ def load_data():
         'student_preferences_long_v8.csv',
         dtype={'Rank': int},
     )
+
+    # normalize names/workshops to avoid duplicates from inconsistent casing
+    prefs['Student'] = prefs['Student'].str.strip().str.lower()
+    prefs['Workshop'] = prefs['Workshop'].str.strip()
+
     # parse submission dates so we can order students chronologically
     prefs['Parsed_Date'] = pd.to_datetime(
         prefs['Date'], format='%d-%m-%Y %H:%M:%S'
     )
+
+    # if a student submitted multiple times keep only the earliest submission
+    prefs.sort_values('Parsed_Date', inplace=True)
+    first_dates = prefs.groupby('Student')['Parsed_Date'].first()
+    prefs = (
+        prefs.merge(first_dates, on='Student', suffixes=('', '_first'))
+        .query('Parsed_Date == Parsed_Date_first')
+        .drop(columns='Parsed_Date_first')
+    )
+
     return sched, prefs
 
 def build_zone_map(prefs):
