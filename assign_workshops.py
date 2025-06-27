@@ -9,6 +9,16 @@ import pandas as pd
 import pulp
 from datetime import datetime
 
+
+def normalize_student(name: str) -> str:
+    """Return a canonical representation for a student's name."""
+    return name.strip().lower()
+
+
+def normalize_workshop(title: str) -> str:
+    """Return a canonical representation for a workshop title."""
+    return title.strip()
+
 def load_data():
     sched = pd.read_csv(
         'workshop_schedule.csv',
@@ -16,14 +26,15 @@ def load_data():
     )
     prefs = pd.read_csv(
         'student_preferences_long_v8.csv',
-        dtype={'Rank': int},
+        dtype={'Rank': int}
     )
 
-    # normalise names to avoid accidental duplicates caused by casing or
-    # trailing spaces.  This keeps "Student" comparisons consistent when we
-    # later enforce the no-repeat rule.
-    prefs['Student'] = prefs['Student'].str.strip().str.lower()
-    prefs['Workshop'] = prefs['Workshop'].str.strip()
+    # Normalise names to avoid duplicates from inconsistent casing or
+    # trailing spaces.  This keeps comparisons consistent when enforcing
+    # the no-repeat rule.
+    sched['Workshop Title'] = sched['Workshop Title'].apply(normalize_workshop)
+    prefs['Student'] = prefs['Student'].apply(normalize_student)
+    prefs['Workshop'] = prefs['Workshop'].apply(normalize_workshop)
 
     # parse submission dates so we can order students chronologically
     prefs['Parsed_Date'] = pd.to_datetime(
@@ -164,15 +175,17 @@ def solve_group(students, zone_map, cost, cap_map, full_map, days, *, late: bool
         # ── No repeats: each student may take a given workshop at most once ──
     # prohibit assigning the same workshop to a student more than once
     workshops = sorted({w for (w, _, _) in cap_map.keys()})
+
+    slots_by_workshop = {
+        w: [(d, t) for (ww, d, t) in cap_map.keys() if ww == w]
+        for w in workshops
+    }
     for s in students:
         for w in workshops:
-            vars_for_workshop = [
-                x[(s, w, day, sess)]
-                for (work, day, sess) in cap_map.keys()
-                if work == w
-            ]
             prob += (
-                pulp.lpSum(vars_for_workshop) <= 1,
+                pulp.lpSum(
+                    x[(s, w, d, t)] for (d, t) in slots_by_workshop[w]
+                ) <= 1,
                 f"NoRepeat_{s}_{w.replace(' ','_')}"
             )
 
@@ -242,19 +255,19 @@ def main():
 
     # 2) Define exactly-preassigned slots for Jesse & Niels
     pre_assign = {
-        'jesse wolters': [
-            ('Vissen', 'Tuesday', 1),
-            ('Papier leer', 'Tuesday', 2),
-            ('Hond in de hoofdrol', 'Wednesday', 1),
-            ('Vuvuzela maken', 'Wednesday', 2),
-            ('Naar de kaasboerderij', 'Thursday', 0),
+        normalize_student('jesse wolters'): [
+            (normalize_workshop('Vissen'), 'Tuesday', 1),
+            (normalize_workshop('Papier leer'), 'Tuesday', 2),
+            (normalize_workshop('Hond in de hoofdrol'), 'Wednesday', 1),
+            (normalize_workshop('Vuvuzela maken'), 'Wednesday', 2),
+            (normalize_workshop('Naar de kaasboerderij'), 'Thursday', 0),
         ],
-        'niels hielkema': [
-            ('Vissen', 'Tuesday', 1),
-            ('Papier leer', 'Tuesday', 2),
-            ('Hond in de hoofdrol', 'Wednesday', 1),
-            ('Vuvuzela maken', 'Wednesday', 2),
-            ('Naar de kaasboerderij', 'Thursday', 0),
+        normalize_student('niels hielkema'): [
+            (normalize_workshop('Vissen'), 'Tuesday', 1),
+            (normalize_workshop('Papier leer'), 'Tuesday', 2),
+            (normalize_workshop('Hond in de hoofdrol'), 'Wednesday', 1),
+            (normalize_workshop('Vuvuzela maken'), 'Wednesday', 2),
+            (normalize_workshop('Naar de kaasboerderij'), 'Thursday', 0),
         ],
     }
 
