@@ -134,8 +134,14 @@ def solve_group(students, zone_map, cost, cap_map, full_map, days, *, late: bool
             osz = pulp.lpSum(other_half)  + 2*pulp.lpSum(other_full)
 
             # how many random slots are allowed?
-            # only if no distinct second choices were provided
-            allow_random = 1 if len(rank2_set)==0 else 0
+            # Late respondents may be assigned random workshops once the
+            # preferred options are exhausted.  Early respondents should not
+            # receive a random workshop at all (unless one of their preferred
+            # choices is a full day session, which already covers two slots).
+            if late:
+                allow_random = 2
+            else:
+                allow_random = 0
 
             # 1) exactly two slots in this zone
             prob += (fsz + ssz + osz == 2,
@@ -367,11 +373,35 @@ def main():
         chosen.append(stu)
         try:
             # Solve for everyone chosen so far, but on a *copy* of cap_tmp
-            rows_tmp = solve_group(chosen,
-                                zone_map,
-                                cost,
-                                cap_tmp.copy(),
-                                full_map,
+    rows += solve_group(
+        students_early,
+        zone_map,
+        cost,
+        cap_map,
+        full_map,
+        days,
+        late=False,
+    )
+
+    rows += solve_group(
+        students_mid,
+        zone_map,
+        cost,
+        cap_map,
+        full_map,
+        days,
+        late=True,
+    )
+
+    rows += solve_group(
+        students_late,
+        zone_map,
+        cost,
+        cap_map,
+        full_map,
+        days,
+        late=True,
+    )
                                 days,
                                 late=False)
             if rows_tmp:
