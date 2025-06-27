@@ -18,10 +18,18 @@ def load_data():
         'student_preferences_long_v8.csv',
         dtype={'Rank': int},
     )
+
+    # normalise names to avoid accidental duplicates caused by casing or
+    # trailing spaces.  This keeps "Student" comparisons consistent when we
+    # later enforce the no-repeat rule.
+    prefs['Student'] = prefs['Student'].str.strip().str.lower()
+    prefs['Workshop'] = prefs['Workshop'].str.strip()
+
     # parse submission dates so we can order students chronologically
     prefs['Parsed_Date'] = pd.to_datetime(
         prefs['Date'], format='%d-%m-%Y %H:%M:%S'
     )
+
     return sched, prefs
 
 def build_zone_map(prefs):
